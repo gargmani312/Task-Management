@@ -1,0 +1,66 @@
+# TEST_DJANGO/core/api_requests.http
+@baseUrl = http://localhost:8000
+@token = REPLACE_WITH_YOUR_TOKEN
+
+### 1. Register User
+POST {{baseUrl}}/user/auth/register/
+Content-Type: application/json
+
+{
+    "username": "admin_user",
+    "password": "password123",
+    "email": "admin@test.com",
+    "role": "admin"
+}
+
+### 2. Login
+POST {{baseUrl}}/user/auth/login/
+Content-Type: application/json
+
+{
+    "username": "admin_user",
+    "password": "password123"
+}
+
+### 3. Create Project
+POST {{baseUrl}}/api/projects/
+Authorization: Token {{token}}
+Content-Type: application/json
+
+{
+    "name": "New Task Platform",
+    "description": "Building the backend."
+}
+
+### 4. List Projects
+GET {{baseUrl}}/api/projects/
+Authorization: Token {{token}}
+
+### 5. Create Task
+POST {{baseUrl}}/api/projects/1/tasks/
+Authorization: Token {{token}}
+Content-Type: application/json
+
+{
+    "title": "Setup Docker",
+    "priority": "high"
+}
+
+### 6. Add Comment
+POST {{baseUrl}}/api/tasks/1/comments/
+Authorization: Token {{token}}
+Content-Type: application/json
+
+{
+    "content": "Docker compose file is ready."
+}
+
+### 7. Trigger Bulk Import
+POST {{baseUrl}}/api/projects/1/import-tasks/
+Authorization: Token {{token}}
+Content-Type: application/json
+
+[
+    {"title": "Imported 1", "priority": "low"},
+    {"title": "Imported 2", "priority": "medium"}
+]
