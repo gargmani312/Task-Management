@@ -14,7 +14,11 @@ urlpatterns = [
 
     # Comments
     path('tasks/<int:task_id>/comments/', views.TaskCommentListCreateView.as_view(), name='task-comment-list-create'),
-
+    
+    # 
+    path('projects/<int:project_id>/reports/', views.ProjectReportListView.as_view(), name='project-reports'),
+    path('projects/<int:project_id>/import-tasks/', views.BulkImportTasksView.as_view(), name='bulk-import-tasks'),
+    path('jobs/<str:job_id>/status/', views.JobStatusView.as_view(), name='job-status'),
 ]
 
 

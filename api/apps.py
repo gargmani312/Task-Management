@@ -5,7 +5,7 @@ class ApiConfig(AppConfig):
     name = 'api'
 
     def ready(self):
-        pass
+        import api.signals
         
         
         

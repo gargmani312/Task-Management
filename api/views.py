@@ -1,3 +1,4 @@
+import uuid
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -7,10 +8,12 @@ from user.models import Project, Task, Comment, User
 from api.serializers.serializer import ProjectSerializer, TaskSerializer, CommentSerializer
 from api.utils.permissions import IsAdminOrManager, IsProjectCreator, IsProjectMember, IsTaskAssigneeOrCreator
 from api.utils.pagination import StandardResultsSetPagination
+from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from django.core.cache import cache
 from .models import ProjectReport
 from api.serializers.serializer import ProjectReportSerializer
+from .tasks import bulk_import_tasks
 
 
 class ProjectListCreateView(generics.ListCreateAPIView):
@@ -26,6 +29,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         return Project.objects.filter(members=self.request.user).select_related('created_by').prefetch_related('members')
 
     def perform_create(self, serializer):
+
         project = serializer.save(created_by=self.request.user)
         project.members.add(self.request.user)
 
@@ -38,6 +42,7 @@ class ProjectAddMemberView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request, pk, *args, **kwargs):
+
         project = get_object_or_404(Project, pk=pk)
         
         is_creator = project.created_by == request.user
@@ -59,7 +64,6 @@ class ProjectTaskListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsProjectMember]
 
     def get_queryset(self):
-
         project_id = self.kwargs.get('project_id')
         queryset = Task.objects.filter(project_id=project_id).select_related('created_by', 'assigned_to', 'project')
         
@@ -88,9 +92,7 @@ class MyTasksListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-
         return Task.objects.filter(assigned_to=self.request.user).select_related('created_by', 'project')
-
 
 
 class TaskCommentListCreateView(generics.ListCreateAPIView):
@@ -104,10 +106,11 @@ class TaskCommentListCreateView(generics.ListCreateAPIView):
         
         if not task.project.members.filter(id=self.request.user.id).exists():
              raise PermissionDenied("You must be a project member to view comments.")
-
+        
         return Comment.objects.filter(task_id=task_id).select_related('author').order_by('-created_at')
 
     def perform_create(self, serializer):
+
         task_id = self.kwargs.get('task_id')
         task = get_object_or_404(Task, pk=task_id)
         
@@ -124,3 +127,32 @@ class ProjectReportListView(generics.ListAPIView):
     def get_queryset(self):
         project_id = self.kwargs.get('project_id')
         return ProjectReport.objects.filter(project_id=project_id).order_by('-generated_at')
+
+class BulkImportTasksView(APIView):
+    """Accepts a JSON list of tasks and queues the import job."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, project_id):
+        tasks_data = request.data
+        if not isinstance(tasks_data, list):
+            return Response({"error": "Expected a list of tasks."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        job_id = str(uuid.uuid4())
+        cache.set(f"job_{job_id}", {"status": "pending"}, timeout=3600)
+        
+        bulk_import_tasks.delay(job_id, project_id, request.user.id, tasks_data)
+        
+        return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
+
+class JobStatusView(APIView):
+    """Checks the status of a queued background job using the cache."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, job_id):
+        job_status = cache.get(f"job_{job_id}")
+        if not job_status:
+            return Response({"error": "Job not found or expired."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(job_status, status=status.HTTP_200_OK)
+    
+    
+    
