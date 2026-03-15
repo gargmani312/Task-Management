@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_yasg',
     'user',
+    'api',
 ]
 
 MIDDLEWARE = [
@@ -107,6 +108,8 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.TokenAuthentication',
     ),
 
+    'DEFAULT_PAGINATION_CLASS': 'api.utils.pagination.StandardResultsSetPagination',
+    'PAGE_SIZE': 10,
 }
 
 AUTH_USER_MODEL = 'user.User'
